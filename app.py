@@ -1,6 +1,8 @@
 import streamlit as st
 import requests
 import datetime
+import pandas as pd
+import altair as alt
 
 # Constants
 API_ENDPOINT = "https://api.stakingrewards.com/public/query"
@@ -97,22 +99,53 @@ def process_and_display_data(headers, validator_address, start_date, end_date):
     validator_data = fetch_validator_by_address(headers, validator_address)
     if validator_data:
         validator = validator_data[0]  # Get the first validator
-        st.subheader(f"Validator ID: {validator['id']} | Address: {validator.get('address', 'N/A')}")
-        metrics_data = {metric['label']: metric['defaultValue'] for metric in validator['metrics']}
-        st.json(metrics_data)
-
+        
         # Fetch historical validator data
         historical_data = fetch_validator_historical_data(headers, validator['id'], start_date.isoformat(), end_date.isoformat())
         if historical_data:
+            display_current_validator_data(validator, historical_data)
             display_historical_data(historical_data)
         else:
             st.write("No historical data available for the given period.")
 
 
-def display_current_validator_data(validator):
+
+
+def display_current_validator_data(validator, historical_data):
     st.subheader(f"Validator ID: {validator['id']} | Address: {validator.get('address', 'N/A')}")
     metrics_data = {metric['label']: metric['defaultValue'] for metric in validator['metrics']}
-    st.json(metrics_data)
+    
+    # Extract the most recent historical data points
+    most_recent_data = {
+        "Delegated Tokens": historical_data.get("Delegated Tokens") and list(historical_data.get("Delegated Tokens", {}).values())[-1] or None,
+        "Reward Rate": historical_data.get("Reward Rate") and list(historical_data.get("Reward Rate", {}).values())[-1] or None,
+        "Staked Tokens": historical_data.get("Staked Tokens") and list(historical_data.get("Staked Tokens", {}).values())[-1] or None,
+        "Staking Share": historical_data.get("Staking Share") and list(historical_data.get("Staking Share", {}).values())[-1] or None
+    }
+
+    # Split the items into two equal halves (or almost equal if odd number of items)
+    items = list(metrics_data.items())
+    first_half = items[:len(items)//2]
+    second_half = items[len(items)//2:]
+    
+    # Create columns to display the data
+    col1, col2 = st.columns(2)
+    
+    for label, value in first_half:
+        delta = None
+        if label in most_recent_data and most_recent_data[label] is not None:
+            delta = value - most_recent_data[label]
+        col1.metric(label=label, value=value, delta=delta)
+        
+    for label, value in second_half:
+        delta = None
+        if label in most_recent_data and most_recent_data[label] is not None:
+            delta = value - most_recent_data[label]
+        col2.metric(label=label, value=value, delta=delta)
+
+
+
+
 
 def display_historical_data(historical_data):
     organized_data = {}
@@ -148,9 +181,7 @@ def fetch_validator_historical_data(headers, validatorID, timeStart, timeEnd):
         "query": HISTORICAL_VALIDATOR_METRICS_QUERY,
         "variables": {"validatorID": validatorID, "timeStart": timeStart, "timeEnd": timeEnd}
     }
-    st.text(payload)
     response = requests.post(API_ENDPOINT, json=payload, headers=headers)
-    st.text(response.json())
     return handle_response(response)
 
 def handle_response(response, key=None):
@@ -165,8 +196,9 @@ def handle_response(response, key=None):
         return {}
     
 def display_historical_data(historical_data):
+    # Organize data by metric type
     organized_data = {}
-
+    # Mapping from GraphQL metric names to human-readable names
     human_readable_names = {
         'delegatedTokens': 'Delegated Tokens',
         'rewardRate': 'Reward Rate',
@@ -174,22 +206,48 @@ def display_historical_data(historical_data):
         'stakedTokens': 'Staked Tokens',
         'stakingShare': 'Staking Share',
         'stakingWallets': 'Staking Wallets',
+        # Add more as necessary
     }
 
-    has_data = False  # Use a flag to check if there's any data
-
     for metric_name, metric_data in historical_data.items():
-        if isinstance(metric_data, list) and metric_data:
-            has_data = True
+        if isinstance(metric_data, list):  # Ensure metric_data is a list
             readable_name = human_readable_names.get(metric_name, metric_name)
             organized_data[readable_name] = {
                 entry['createdAt']: entry['defaultValue'] for entry in metric_data
             }
 
-    if has_data:
-        st.json(organized_data)
-    else:
-        st.write("No historical data available for the given period.")
+    # Plot the data
+    plot_historical_data(organized_data)
+
+
+def plot_historical_data(data):
+    metrics = list(data.keys())
+    
+    for i in range(0, len(metrics), 2):  # Step by 2 to process two metrics at a time
+        cols = st.columns(2)
+        
+        for j in range(2):
+            if i + j < len(metrics):
+                metric_name = metrics[i + j]
+                metric_data = data[metric_name]
+
+                # Convert the data into a DataFrame
+                df = pd.DataFrame(list(metric_data.items()), columns=['Date', metric_name])
+                df['Date'] = pd.to_datetime(df['Date'])
+
+                # Create an Altair chart
+                chart = alt.Chart(df).mark_line(point=True).encode(
+                    x='Date:T',
+                    y=metric_name,
+                    tooltip=['Date:T', metric_name]
+                ).properties(
+                    width=300,  # Adjust the width to fit side by side
+                    height=300,
+                    title=metric_name
+                ).interactive()
+
+                # Display chart in one of the columns
+                cols[j].altair_chart(chart, use_container_width=True)
 
 
 if __name__ == "__main__":
