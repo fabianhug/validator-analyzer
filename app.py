@@ -10,7 +10,7 @@ API_ENDPOINT = "https://api.stakingrewards.com/public/query"
 # GraphQL Queries
 VALIDATOR_BY_ADDRESS_QUERY = """
     query FetchValidatorByAddress($address: String!) {
-        validators(where: {addresses: [$address]}, limit: 20) {
+        validators(where: {addresses: [$address]}, limit: 1) {
             id
             address
             rewardOptions(limit: 1) {
@@ -28,7 +28,7 @@ VALIDATOR_BY_ADDRESS_QUERY = """
             status {
                 label
             }
-            metrics(limit: 20) {
+            metrics(limit: 100) {
                 label
                 metricKey
                 tooltip
@@ -47,27 +47,27 @@ VALIDATOR_BY_ADDRESS_QUERY = """
 
 HISTORICAL_VALIDATOR_METRICS_QUERY = """
     query HistoricalValidatorMetrics($validatorID: String!, $timeStart: Date, $timeEnd: Date) {
-        delegatedTokens: metrics(where: {validator: {id: $validatorID}, metricKeys: ["delegated_tokens"], createdAt_gt: $timeStart, createdAt_lt: $timeEnd}, limit: 30, order: {createdAt: asc}) {
+        delegatedTokens: metrics(where: {validator: {id: $validatorID}, metricKeys: ["delegated_tokens"], createdAt_gt: $timeStart, createdAt_lt: $timeEnd}, limit: 500, order: {createdAt: asc}) {
             defaultValue
             createdAt
         }
-        rewardRate: metrics(where: {validator: {id: $validatorID}, metricKeys: ["reward_rate"], createdAt_gt: $timeStart, createdAt_lt: $timeEnd}, limit: 30, order: {createdAt: asc}) {
+        rewardRate: metrics(where: {validator: {id: $validatorID}, metricKeys: ["reward_rate"], createdAt_gt: $timeStart, createdAt_lt: $timeEnd}, limit: 500, order: {createdAt: asc}) {
             defaultValue
             createdAt
         }
-        selfStakedTokens: metrics(where: {validator: {id: $validatorID}, metricKeys: ["self_staked_tokens"], createdAt_gt: $timeStart, createdAt_lt: $timeEnd}, limit: 30, order: {createdAt: asc}) {
+        selfStakedTokens: metrics(where: {validator: {id: $validatorID}, metricKeys: ["self_staked_tokens"], createdAt_gt: $timeStart, createdAt_lt: $timeEnd}, limit: 500, order: {createdAt: asc}) {
             defaultValue
             createdAt
         }
-        stakedTokens: metrics(where: {validator: {id: $validatorID}, metricKeys: ["staked_tokens"], createdAt_gt: $timeStart, createdAt_lt: $timeEnd}, limit: 30, order: {createdAt: asc}) {
+        stakedTokens: metrics(where: {validator: {id: $validatorID}, metricKeys: ["staked_tokens"], createdAt_gt: $timeStart, createdAt_lt: $timeEnd}, limit: 500, order: {createdAt: asc}) {
             defaultValue
             createdAt
         }
-        stakingShare: metrics(where: {validator: {id: $validatorID}, metricKeys: ["staking_share"], createdAt_gt: $timeStart, createdAt_lt: $timeEnd}, limit: 30, order: {createdAt: asc}) {
+        stakingShare: metrics(where: {validator: {id: $validatorID}, metricKeys: ["staking_share"], createdAt_gt: $timeStart, createdAt_lt: $timeEnd}, limit: 500, order: {createdAt: asc}) {
             defaultValue
             createdAt
         }
-        stakingWallets: metrics(where: {validator: {id: $validatorID}, metricKeys: ["staking_wallets"], createdAt_gt: $timeStart, createdAt_lt: $timeEnd}, limit: 30, order: {createdAt: asc}) {
+        stakingWallets: metrics(where: {validator: {id: $validatorID}, metricKeys: ["staking_wallets"], createdAt_gt: $timeStart, createdAt_lt: $timeEnd}, limit: 500, order: {createdAt: asc}) {
             defaultValue
             createdAt
         }
@@ -88,7 +88,7 @@ def main():
     API_KEY = st.text_input("Enter your API key:", type="password")
     
     # Request validator address from user
-    validator_address = st.text_input("Enter validator address:")
+    validator_address = st.text_input("Enter validator address:", "0xf3ad5b5d88d864559ad12e4d9b19c4f8b346c465")
 
     # Date inputs
     today = datetime.date.today()
