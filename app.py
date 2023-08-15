@@ -13,6 +13,12 @@ VALIDATOR_BY_ADDRESS_QUERY = """
         validators(where: {addresses: [$address]}, limit: 20) {
             id
             address
+            rewardOptions(limit: 1) {
+              inputAssets(limit: 1) {
+                name
+                symbol
+              }
+            }
             isActive
             isPrivate
             isDynamic
@@ -72,6 +78,12 @@ HISTORICAL_VALIDATOR_METRICS_QUERY = """
 def main():
     st.title("Validator Performance Analyzer")
 
+    st.write("""
+             This tool provides insights into the performance metrics of a given validator.
+             By simply entering the validator address, you can view current performance metrics and historical data. Whether you're an individual staker, a validator, or just curious about the metrics, this app offers a comprehensive snapshot of validator performance over time.
+             """)
+    
+
     # Request API key from user
     API_KEY = st.text_input("Enter your API key:", type="password")
     
@@ -92,6 +104,9 @@ def main():
         if st.button("Fetch Validator Data"):
             process_and_display_data(headers, validator_address, start_date, end_date)
 
+    st.divider()
+    st.markdown('Created by [**@0xfabs**](https://twitter.com/0xfabs)')
+
 
 
 def process_and_display_data(headers, validator_address, start_date, end_date):
@@ -99,11 +114,14 @@ def process_and_display_data(headers, validator_address, start_date, end_date):
     validator_data = fetch_validator_by_address(headers, validator_address)
     if validator_data:
         validator = validator_data[0]  # Get the first validator
-        
+        st.divider()
         # Fetch historical validator data
         historical_data = fetch_validator_historical_data(headers, validator['id'], start_date.isoformat(), end_date.isoformat())
         if historical_data:
             display_current_validator_data(validator, historical_data)
+            st.divider()
+            # Add a subheading for historical data
+            st.subheader("Historical Data")
             display_historical_data(historical_data)
         else:
             st.write("No historical data available for the given period.")
@@ -112,15 +130,19 @@ def process_and_display_data(headers, validator_address, start_date, end_date):
 
 
 def display_current_validator_data(validator, historical_data):
-    st.subheader(f"Validator ID: {validator['id']} | Address: {validator.get('address', 'N/A')}")
+    asset_name = validator['rewardOptions'][0]['inputAssets'][0]['name']
+    asset_symbol = validator['rewardOptions'][0]['inputAssets'][0]['symbol']
+    st.subheader(f"Validator Address: {validator.get('address', 'N/A')} ")  # Display the asset
+    st.subheader(f"{asset_name} (${asset_symbol})")
+    
     metrics_data = {metric['label']: metric['defaultValue'] for metric in validator['metrics']}
     
     # Extract the most recent historical data points
     most_recent_data = {
-        "Delegated Tokens": historical_data.get("Delegated Tokens") and list(historical_data.get("Delegated Tokens", {}).values())[-1] or None,
-        "Reward Rate": historical_data.get("Reward Rate") and list(historical_data.get("Reward Rate", {}).values())[-1] or None,
-        "Staked Tokens": historical_data.get("Staked Tokens") and list(historical_data.get("Staked Tokens", {}).values())[-1] or None,
-        "Staking Share": historical_data.get("Staking Share") and list(historical_data.get("Staking Share", {}).values())[-1] or None
+        "Delegated Tokens": historical_data.get("Delegated Tokens") and round(list(historical_data.get("Delegated Tokens", {}).values())[-1], 2) or None,
+        "Reward Rate": historical_data.get("Reward Rate") and round(list(historical_data.get("Reward Rate", {}).values())[-1], 2) or None,
+        "Staked Tokens": historical_data.get("Staked Tokens") and round(list(historical_data.get("Staked Tokens", {}).values())[-1], 2) or None,
+        "Staking Share": historical_data.get("Staking Share") and round(list(historical_data.get("Staking Share", {}).values())[-1], 2) or None
     }
 
     # Split the items into two equal halves (or almost equal if odd number of items)
@@ -132,18 +154,18 @@ def display_current_validator_data(validator, historical_data):
     col1, col2 = st.columns(2)
     
     for label, value in first_half:
+        value = round(value, 2)
         delta = None
         if label in most_recent_data and most_recent_data[label] is not None:
-            delta = value - most_recent_data[label]
+            delta = round(value - most_recent_data[label], 2)
         col1.metric(label=label, value=value, delta=delta)
         
     for label, value in second_half:
+        value = round(value, 2)
         delta = None
         if label in most_recent_data and most_recent_data[label] is not None:
-            delta = value - most_recent_data[label]
+            delta = round(value - most_recent_data[label], 2)
         col2.metric(label=label, value=value, delta=delta)
-
-
 
 
 
@@ -235,19 +257,34 @@ def plot_historical_data(data):
                 df = pd.DataFrame(list(metric_data.items()), columns=['Date', metric_name])
                 df['Date'] = pd.to_datetime(df['Date'])
 
-                # Create an Altair chart
-                chart = alt.Chart(df).mark_line(point=True).encode(
-                    x='Date:T',
-                    y=metric_name,
-                    tooltip=['Date:T', metric_name]
-                ).properties(
-                    width=300,  # Adjust the width to fit side by side
-                    height=300,
-                    title=metric_name
-                ).interactive()
+                # Check if data is available
+                if not df[metric_name].isna().all():  # Check if all values are NaN
+                    # Calculate y_min and y_max for padding
+                    y_min = df[metric_name].min()
+                    y_max = df[metric_name].max()
 
-                # Display chart in one of the columns
-                cols[j].altair_chart(chart, use_container_width=True)
+                    # Add some padding to the limits to ensure some space above and below the actual data
+                    padding = (y_max - y_min) * 0.1 
+                    y_min -= padding
+                    y_max += padding
+
+                    # Create an Altair chart
+                    chart = alt.Chart(df).mark_line(point=True).encode(
+                        x='Date:T',
+                        y=alt.Y(metric_name, scale=alt.Scale(domain=(y_min, y_max))),
+                        tooltip=['Date:T', metric_name]
+                    ).properties(
+                        width=300,  # Adjust the width to fit side by side
+                        height=300,
+                        title=metric_name
+                    ).interactive()
+
+                    # Display chart in one of the columns
+                    cols[j].altair_chart(chart, use_container_width=True)
+                else:
+                    cols[j].write(f"No data available for {metric_name}")
+
+
 
 
 if __name__ == "__main__":
