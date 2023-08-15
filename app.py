@@ -105,8 +105,7 @@ def main():
             process_and_display_data(headers, validator_address, start_date, end_date)
 
     st.divider()
-    st.markdown('Created by [**@0xfabs**](https://twitter.com/0xfabs)')
-
+    st.markdown('Created by [**@0xfabs**](https://twitter.com/0xfabs) | Data by the [**Staking Rewards API**](https://stakingrewards.typeform.com/apply-api)')
 
 
 def process_and_display_data(headers, validator_address, start_date, end_date):
