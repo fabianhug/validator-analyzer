@@ -20,10 +20,6 @@ VALIDATOR_BY_ADDRESS_QUERY = """
               }
             }
             isActive
-            isPrivate
-            isDynamic
-            isOpensource
-            activeSince
             metricsUpdatedAt
             status {
                 label
@@ -31,14 +27,10 @@ VALIDATOR_BY_ADDRESS_QUERY = """
             metrics(limit: 100) {
                 label
                 metricKey
-                tooltip
-                unit
-                precision
                 defaultValue
-                variation
-                changePercentages
-                changeAbsolutes
-                rewardOptionKeys
+                #changePercentages
+                #changeAbsolutes
+                #rewardOptionKeys
                 createdAt
             }
         }
